@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ESP32 BCH Solo Mining — Technical Assessment Report</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700;900&display=swap');
+
+  :root {
+    --bg: #0a0c0a;
+    --panel: #111411;
+    --border: #1e2b1e;
+    --accent: #39ff14;
+    --accent2: #f7c948;
+    --accent3: #ff4d4d;
+    --text: #c8d8c8;
+    --muted: #556655;
+    --mono: 'Share Tech Mono', monospace;
+    --head: 'Barlow Condensed', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.7;
+    min-height: 100vh;
+  }
+
+  .scanline {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+    pointer-events: none; z-index: 9999;
+  }
+
+  header {
+    border-bottom: 2px solid var(--accent);
+    padding: 24px 32px 20px;
+    background: linear-gradient(180deg, #0d120d 0%, var(--bg) 100%);
+    position: relative;
+    overflow: hidden;
+  }
+
+  header::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: repeating-linear-gradient(90deg, var(--accent) 0, var(--accent) 8px, transparent 8px, transparent 16px);
+  }
+
+  .doc-meta {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  h1 {
+    font-family: var(--head);
+    font-size: 38px;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #fff;
+    line-height: 1.05;
+  }
+
+  h1 span { color: var(--accent); }
+
+  .subtitle {
+    font-family: var(--head);
+    font-size: 15px;
+    font-weight: 300;
+    color: var(--muted);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-top: 6px;
+  }
+
+  .status-bar {
+    display: flex; gap: 24px; flex-wrap: wrap;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .status-item { display: flex; align-items: center; gap: 6px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 2s infinite; }
+  .dot.warn { background: var(--accent2); }
+  .dot.dead { background: var(--accent3); animation: none; }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  main { max-width: 960px; margin: 0 auto; padding: 32px 24px 64px; }
+
+  .verdict-box {
+    border: 2px solid var(--accent2);
+    background: #0f120a;
+    padding: 20px 24px;
+    margin-bottom: 36px;
+    position: relative;
+  }
+
+  .verdict-box::before {
+    content: '▶ EXECUTIVE VERDICT';
+    position: absolute; top: -10px; left: 16px;
+    background: var(--bg);
+    padding: 0 8px;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--accent2);
+    font-weight: bold;
+  }
+
+  .verdict-box p { color: var(--text); line-height: 1.8; }
+  .verdict-box strong { color: var(--accent); }
+
+  section { margin-bottom: 40px; }
+
+  .section-header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section-num {
+    font-family: var(--head);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.2em;
+    background: #0d1a0d;
+    border: 1px solid var(--accent);
+    padding: 2px 8px;
+  }
+
+  h2 {
+    font-family: var(--head);
+    font-size: 22px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #e8f0e8;
+  }
+
+  /* Firmware Comparison Table */
+  .fw-table { width: 100%; border-collapse: collapse; margin-top: 4px; font-size: 12px; }
+  .fw-table th {
+    text-align: left; padding: 8px 12px;
+    border-bottom: 2px solid var(--accent);
+    font-family: var(--head);
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: #0a0f0a;
+  }
+  .fw-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .fw-table tr:hover td { background: #0d140d; }
+  .fw-table .name { color: var(--accent2); font-weight: bold; }
+  .fw-table .good { color: var(--accent); }
+  .fw-table .warn { color: var(--accent2); }
+  .fw-table .bad { color: var(--accent3); }
+
+  /* Pool Table */
+  .pool-table { width: 100%; border-collapse: collapse; margin-top: 4px; font-size: 12px; }
+  .pool-table th {
+    text-align: left; padding: 8px 12px;
+    border-bottom: 2px solid var(--muted);
+    font-family: var(--head); font-weight: 700;
+    font-size: 11px; letter-spacing: 0.15em;
+    text-transform: uppercase; color: var(--muted);
+    background: #0a0c0a;
+  }
+  .pool-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .pool-table tr:hover td { background: #0d140d; }
+  .pool-url { color: var(--accent); font-size: 11px; }
+  .tag {
+    display: inline-block; padding: 1px 6px;
+    font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    border-radius: 2px; margin-right: 4px;
+  }
+  .tag-green { background: #0a2e0a; border: 1px solid var(--accent); color: var(--accent); }
+  .tag-yellow { background: #2e2200; border: 1px solid var(--accent2); color: var(--accent2); }
+  .tag-red { background: #2e0000; border: 1px solid var(--accent3); color: var(--accent3); }
+
+  /* Step boxes */
+  .steps { display: flex; flex-direction: column; gap: 0; }
+  .step {
+    display: grid; grid-template-columns: 52px 1fr;
+    border: 1px solid var(--border);
+    border-bottom: none;
+  }
+  .step:last-child { border-bottom: 1px solid var(--border); }
+  .step-num {
+    background: #0d140d;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--head); font-size: 24px; font-weight: 900;
+    color: var(--accent); border-right: 1px solid var(--border);
+    padding: 16px 8px;
+  }
+  .step-body { padding: 14px 18px; }
+  .step-body h3 {
+    font-family: var(--head); font-size: 15px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    color: #e0eee0; margin-bottom: 5px;
+  }
+  .step-body p { color: var(--text); font-size: 12px; line-height: 1.7; }
+  .step-body code {
+    display: inline-block; background: #080e08;
+    border: 1px solid var(--border); padding: 1px 6px;
+    color: var(--accent2); font-size: 11px; border-radius: 2px;
+    margin: 1px 0;
+  }
+  .step-body .cmd {
+    display: block; background: #060c06; border: 1px solid var(--border);
+    padding: 8px 12px; margin-top: 8px; color: var(--accent);
+    font-size: 11px; letter-spacing: 0.05em;
+  }
+
+  /* Alert/note boxes */
+  .note {
+    border-left: 3px solid var(--accent2);
+    background: #12110a;
+    padding: 12px 16px;
+    margin: 12px 0;
+    font-size: 12px;
+    color: var(--text);
+  }
+  .note.critical { border-left-color: var(--accent3); background: #120a0a; }
+  .note.info { border-left-color: var(--accent); background: #0a120a; }
+  .note strong { color: var(--accent2); }
+  .note.critical strong { color: var(--accent3); }
+  .note.info strong { color: var(--accent); }
+
+  /* Hashrate bars */
+  .hashrate-row { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+  .h-bar { display: grid; grid-template-columns: 160px 1fr 80px; gap: 10px; align-items: center; font-size: 11px; }
+  .h-bar .label { color: var(--text); }
+  .h-bar .bar-bg { background: #0a0e0a; border: 1px solid var(--border); height: 14px; position: relative; }
+  .h-bar .bar-fill { height: 100%; background: linear-gradient(90deg, #0d3d0d, var(--accent)); transition: width 1s; }
+  .h-bar .val { color: var(--accent2); text-align: right; font-weight: bold; }
+
+  /* Odds panel */
+  .odds-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); margin-top: 8px; }
+  .odds-cell { background: var(--panel); padding: 16px; }
+  .odds-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.15em; color: var(--muted); margin-bottom: 4px; }
+  .odds-val { font-family: var(--head); font-size: 20px; font-weight: 700; color: var(--accent2); }
+  .odds-val.good { color: var(--accent); }
+  .odds-val.bad { color: var(--accent3); }
+
+  /* Sources */
+  .sources { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--border); }
+  .sources h3 {
+    font-family: var(--head); font-size: 13px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.15em;
+    color: var(--muted); margin-bottom: 12px;
+  }
+  .source-list { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+  .source-list li { font-size: 11px; color: var(--muted); display: flex; gap: 8px; }
+  .source-list li::before { content: '→'; color: var(--accent); flex-shrink: 0; }
+  .source-list a { color: var(--accent2); text-decoration: none; }
+  .source-list a:hover { color: var(--accent); text-decoration: underline; }
+
+  footer {
+    text-align: center; padding: 20px;
+    border-top: 1px solid var(--border);
+    font-size: 10px; color: var(--muted);
+    letter-spacing: 0.15em; text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+<div class="scanline"></div>
+
+<header>
+  <div class="doc-meta">ID34 Mining &amp; Engineering · Technical Intelligence Report · May 2026</div>
+  <h1>ESP32 <span>BCH</span> Solo Mining<br>Assessment</h1>
+  <div class="subtitle">CYD 2.8 / WROOM / S3 / C3 — Firmware, Pools &amp; Reality Check</div>
+  <div class="status-bar">
+    <div class="status-item"><div class="dot"></div>Research Active</div>
+    <div class="status-item"><div class="dot warn"></div>BCH Pool Availability: Limited</div>
+    <div class="status-item"><div class="dot warn"></div>NMMiner BCH: Confirmed Supported</div>
+    <div class="status-item"><div class="dot dead"></div>SparkMiner BCH: BTC Only</div>
+  </div>
+</header>
+
+<main>
+
+  <div class="verdict-box">
+    <p>
+      <strong>YES — BCH solo mining on ESP32 CYD/WROOM is possible</strong>, but with hard constraints. BCH uses SHA-256d (same as BTC), so existing firmware works — the bottleneck is finding a <strong>solo pool that accepts low-difficulty connections</strong> from ESP32-class hardware. As of May 2026, <strong>NMMiner firmware</strong> (commercial, licensed) is the only CYD-native option with confirmed BCH support. NerdMiner V2 (open source) works IF you can identify a compatible low-diff BCH stratum pool — which has proven unstable in the community. <strong>SparkMiner (open source, highest hashrate) explicitly does NOT support BCH.</strong>
+    </p>
+  </div>
+
+  <!-- SECTION 1: Hardware -->
+  <section>
+    <div class="section-header">
+      <div class="section-num">01</div>
+      <h2>Hardware Compatibility</h2>
+    </div>
+    <p style="margin-bottom:14px; font-size:12px; color:var(--text);">
+      All three of your target boards share the same ESP32 core architecture (Xtensa LX6 or LX7 dual-core, 240MHz) and SHA-256d capability. BCH = SHA-256d — no algorithm incompatibility exists at the hardware level.
+    </p>
+    <table class="fw-table">
+      <thead><tr><th>Board</th><th>Chip</th><th>Hashrate (typical)</th><th>BCH Firmware</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="name">CYD ESP32-2432S028R (2.8")</td>
+          <td>ESP32-D0 (WROOM)</td>
+          <td class="good">700–1000 KH/s</td>
+          <td class="good">NMMiner ✓ / NerdMiner ✓</td>
+          <td>ILI9341 or ST7789 display variant — ID your driver before flashing</td>
+        </tr>
+        <tr>
+          <td class="name">ESP32 WROOM-32</td>
+          <td>ESP32-D0WDQ6</td>
+          <td class="good">~700–725 KH/s</td>
+          <td class="good">NMMiner ✓ / NerdMiner ✓ / SparkMiner ✓ (BTC only)</td>
+          <td>Hardware SHA-256 registers available; best open-source hashrate platform</td>
+        </tr>
+        <tr>
+          <td class="name">ESP32-S3 DevKit / CE</td>
+          <td>ESP32-S3 dual LX7</td>
+          <td class="warn">~78–256 KH/s</td>
+          <td class="warn">NerdMiner ✓ / NMMiner ✓</td>
+          <td>S3 lacks hardware SHA-256 registers; lower hashrate than WROOM despite faster CPU</td>
+        </tr>
+        <tr>
+          <td class="name">ESP32-C3 / DE</td>
+          <td>RISC-V single-core</td>
+          <td class="bad">~349 KH/s</td>
+          <td class="warn">SparkMiner C3 build (BTC only), NerdMiner limited</td>
+          <td>Single-core; software SHA-256 only; not recommended for BCH</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="note info" style="margin-top:14px;">
+      <strong>VanBlake note:</strong> Your TTT dual-node WROOM units are your best BCH candidates. WROOM has hardware SHA-256 acceleration — the same silicon advantage SparkMiner exploits for ~725 KH/s on BTC applies equally to BCH SHA-256d hashing.
+    </div>
+  </section>
+
+  <!-- SECTION 2: Hashrate Reality -->
+  <section>
+    <div class="section-header">
+      <div class="section-num">02</div>
+      <h2>Hashrate by Firmware</h2>
+    </div>
+    <div class="hashrate-row">
+      <div class="h-bar">
+        <div class="label">NMMiner (licensed, CYD)</div>
+        <div class="bar-bg"><div class="bar-fill" style="width:90%"></div></div>
+        <div class="val">~1000 KH/s</div>
+      </div>
+      <div class="h-bar">
+        <div class="label">SparkMiner (OSS, WROOM)</div>
+        <div class="bar-bg"><div class="bar-fill" style="width:72%"></div></div>
+        <div class="val">~725 KH/s</div>
+      </div>
+      <div class="h-bar">
+        <div class="label">NerdMiner V2 (OSS, WROOM)</div>
+        <div class="bar-bg"><div class="bar-fill" style="width:25%"></div></div>
+        <div class="val">~55–256 KH/s</div>
+      </div>
+      <div class="h-bar">
+        <div class="label">NerdMiner V2 (OSS, S3)</div>
+        <div class="bar-bg"><div class="bar-fill" style="width:8%"></div></div>
+        <div class="val">~78 KH/s</div>
+      </div>
+    </div>
+    <div class="note" style="margin-top:14px; font-size:11px;">
+      <strong>Source context:</strong> NMMiner's "1000 KH/s" and "2000% faster than NerdMiner" claims compare against NerdMiner's S3 baseline (~55 KH/s), not the WROOM baseline. Pool-reported hashrate (shares × difficulty) often reads 15–30% higher than device display.
+    </div>
+  </section>
+
+  <!-- SECTION 3: Firmware Options -->
+  <section>
+    <div class="section-header">
+      <div class="section-num">03</div>
+      <h2>Firmware Options — BCH Capability Matrix</h2>
+    </div>
+
+    <table class="fw-table">
+      <thead><tr><th>Firmware</th><th>BCH Support</th><th>Cost</th><th>CYD 2.8 Support</th><th>Flash Method</th><th>Source</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="name">NMMiner</td>
+          <td class="good">✓ Confirmed (BTC/BCH/DGB/XEC)</td>
+          <td class="warn">Licensed (paid)</td>
+          <td class="good">✓ Native</td>
+          <td>flash.nmminer.com web flasher</td>
+          <td>nmminer.com / GitHub NMminer1024</td>
+        </tr>
+        <tr>
+          <td class="name">NerdMiner V2</td>
+          <td class="warn">✓ Conditional (needs BCH solo pool)</td>
+          <td class="good">Free / OSS</td>
+          <td class="good">✓ ESP32-2432S028R bin available</td>
+          <td>ESPWebTool (Chrome) or esptool.py</td>
+          <td>github.com/BitMaker-hub/NerdMiner_v2</td>
+        </tr>
+        <tr>
+          <td class="name">SparkMiner</td>
+          <td class="bad">✗ BTC only (SHA-256d only, no BCH pool support)</td>
+          <td class="good">Free / OSS (GPL v3)</td>
+          <td class="good">✓ cyd-1usb / cyd-2usb boards</td>
+          <td>devtool.py build script / web flasher</td>
+          <td>github.com/BitzyLabs/sparkminer</td>
+        </tr>
+        <tr>
+          <td class="name">LeafMiner</td>
+          <td class="warn">✓ Conditional (any SHA-256 stratum pool)</td>
+          <td class="good">Free / OSS</td>
+          <td class="warn">Generic ESP32 (no CYD display driver)</td>
+          <td>ESPWebTool / esptool.py</td>
+          <td>github.com/matteocrippa/leafminer</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="note critical" style="margin-top:14px;">
+      <strong>CRITICAL FINDING:</strong> NMMiner BCH support was confirmed directly by the NMMiner team in a product Q&amp;A (June 2025): "yes, of course, BTC/BCH/DGB/XEC supported." NMMiner requires a license purchase per device. Community members using NerdMiner V2 for BCH have reported unstable pool connections — retromike.net BCH pool went down after approximately one week of operation in known community testing.
+    </div>
+  </section>
+
+  <!-- SECTION 4: Pool Assessment -->
+  <section>
+    <div class="section-header">
+      <div class="section-num">04</div>
+      <h2>BCH Solo Mining Pool Assessment</h2>
+    </div>
+    <p style="margin-bottom:14px; font-size:12px; color:var(--text);">
+      The critical constraint for ESP32 BCH mining is pool compatibility. Standard BCH pools set minimum difficulty far above ESP32 share submission capacity. Only pools with explicit low-difficulty stratum for embedded devices will work.
+    </p>
+
+    <table class="pool-table">
+      <thead><tr><th>Pool</th><th>Stratum Endpoint</th><th>Status</th><th>Low-Diff</th><th>Assessment</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>NMMiner BCH Pool</strong><br><span style="font-size:10px; color:var(--muted);">NMTech operated</span></td>
+          <td class="pool-url">solobtc.nmminer.com:3333</td>
+          <td><span class="tag tag-green">Active</span></td>
+          <td><span class="tag tag-green">✓</span></td>
+          <td>Officially supports BCH/DGB/XEC. NMMiner firmware required. Most reliable known option for CYD.</td>
+        </tr>
+        <tr>
+          <td><strong>retromike.net BCH</strong><br><span style="font-size:10px; color:var(--muted);">Community pool</span></td>
+          <td class="pool-url">retromike.net (BCH port)</td>
+          <td><span class="tag tag-yellow">Intermittent</span></td>
+          <td><span class="tag tag-green">✓</span></td>
+          <td>Specifically built with NerdMiner-compatible low-diff stratum. Reports of downtime after ~1 week uptime windows. Password: x or blank. Run by TheRetroMike (GitHub: MiningNodes repo).</td>
+        </tr>
+        <tr>
+          <td><strong>bch.solopool.org</strong></td>
+          <td class="pool-url">bch.solopool.org</td>
+          <td><span class="tag tag-yellow">Unknown diff</span></td>
+          <td><span class="tag tag-red">Unverified</span></td>
+          <td>Listed as BCH solo pool. No confirmed ESP32 low-difficulty support found in community testing. May reject ESP32 shares.</td>
+        </tr>
+        <tr>
+          <td><strong>public-pool.io</strong></td>
+          <td class="pool-url">public-pool.io:3333</td>
+          <td><span class="tag tag-green">Active</span></td>
+          <td><span class="tag tag-green">✓</span></td>
+          <td>BTC only. Referenced as fallback by community when BCH pools fail. Not BCH-capable.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="note" style="margin-top:14px;">
+      <strong>Protocol requirement:</strong> ESP32 miners connect via Stratum v1. Pool password is typically <code>x</code> or blank. Worker name = your BCH wallet address. NMMiner firmware handles coin selection in device config — you point to BCH pool, enter BCH address, it hashes SHA-256d.
+    </div>
+  </section>
+
+  <!-- SECTION 5: Setup Steps -->
+  <section>
+    <div class="section-header">
+      <div class="section-num">05</div>
+      <h2>Fastest Path to BCH Mining — CYD 2.8</h2>
+    </div>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h3>Identify Your CYD Display Driver</h3>
+          <p>CYD ESP32-2432S028R comes in two display variants: <code>ILI9341</code> and <code>ST7789</code>. Wrong firmware = screen corruption. Check your board's back label or silk screen. When in doubt, flash both and keep the one that displays correctly. NMMiner web flasher at <code>flash.nmminer.com</code> lists both options explicitly.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h3>Get a BCH Wallet Address</h3>
+          <p>Any non-custodial BCH wallet works. Electron Cash (open source, desktop) is the community standard. Your miner's worker name in stratum = your BCH address. You'll need this before flashing configuration.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3A</div>
+        <div class="step-body">
+          <h3>Path A: NMMiner (Paid, Easiest)</h3>
+          <p>Purchase NMMiner license at <code>nmminer.com</code>. Flash via web flasher at <code>flash.nmminer.com</code> using Chrome/Brave. Select board: <code>esp32-2432s028r-ili9341</code> or <code>esp32-2432s028r-st7789</code>. Configure via WiFi portal or built-in web dashboard. Set pool to NMMiner's BCH stratum, enter BCH address. BCH/DGB/XEC all confirmed supported per NMMiner dev team.</p>
+          <span class="cmd">Pool: stratum+tcp://solobtc.nmminer.com:3333 | Password: x</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3B</div>
+        <div class="step-body">
+          <h3>Path B: NerdMiner V2 (Free, Pool-Dependent)</h3>
+          <p>Flash from GitHub releases: <code>github.com/BitMaker-hub/NerdMiner_v2/releases</code>. Use file <code>ESP32-2432S028R_factory.bin</code> for fresh install. Flash via ESPWebTool in Chrome. Connect to NerdMiner WiFi AP post-flash, configure BCH pool and BCH address. Pool must accept low-difficulty stratum. retromike.net BCH pool is the only community-confirmed option but has stability issues.</p>
+          <span class="cmd">Pool: retromike.net (BCH port) | Password: x | Worker: your-BCH-address</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <h3>Install CH340 USB Driver (if needed)</h3>
+          <p>CYD boards use CH340 USB-serial chip. Without this driver, Windows won't recognize the COM port and flashing will fail. Download from <code>wch.cn</code> or search "CH340 driver Windows 10/11." Mac/Linux usually detect automatically. NMMiner community confirms this as the #1 first-flash failure point.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <h3>Boot Mode for Stubborn Boards</h3>
+          <p>If flashing fails or upload stalls: unplug USB, hold <code>BOOT</code> button, plug USB back in, then release. This forces the ESP32 into download mode. Required on some CYD variants especially for factory/full-chip flash. After programming, press <code>RESET</code> or replug to boot into firmware.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 6: Odds Reality -->
+  <section>
+    <div class="section-header">
+      <div class="section-num">06</div>
+      <h2>BCH vs BTC — Odds Comparison</h2>
+    </div>
+    <p style="margin-bottom:14px; font-size:12px; color:var(--text);">
+      BCH has significantly lower network difficulty than BTC — this is the core strategic argument for pointing an ESP32 at BCH instead of BTC.
+    </p>
+    <div class="odds-grid">
+      <div class="odds-cell">
+        <div class="odds-label">BTC Network Difficulty (approx.)</div>
+        <div class="odds-val bad">~120 Trillion</div>
+      </div>
+      <div class="odds-cell">
+        <div class="odds-label">BCH Network Difficulty (approx.)</div>
+        <div class="odds-val warn">~600 Billion</div>
+      </div>
+      <div class="odds-cell">
+        <div class="odds-label">Relative Difficulty Advantage (BCH vs BTC)</div>
+        <div class="odds-val good">~200x easier</div>
+      </div>
+      <div class="odds-cell">
+        <div class="odds-label">ESP32 Block Find Odds (BTC, 1 unit)</div>
+        <div class="odds-val bad">~1 in 10²⁰</div>
+      </div>
+      <div class="odds-cell">
+        <div class="odds-label">BCH Block Reward</div>
+        <div class="odds-val warn">6.25 BCH</div>
+      </div>
+      <div class="odds-cell">
+        <div class="odds-label">BTC Block Reward</div>
+        <div class="odds-val">3.125 BTC</div>
+      </div>
+    </div>
+    <div class="note info" style="margin-top:14px;">
+      <strong>Strategic assessment:</strong> BCH's ~200x lower difficulty meaningfully improves lottery odds compared to BTC solo mining on an ESP32. The block reward is higher in BCH units (6.25 vs 3.125) though BTC's USD price premium inverts this in fiat terms. For pure lottery probability on a hobbyist device, BCH is the rational target. Network difficulty adjusts every block on BCH (DAA), so this ratio fluctuates.
+    </div>
+  </section>
+
+  <!-- SECTION 7: Known Issues -->
+  <section>
+    <div class="section-header">
+      <div class="section-num">07</div>
+      <h2>Known Issues &amp; Community-Reported Failures</h2>
+    </div>
+    <div class="note critical">
+      <strong>POOL INSTABILITY:</strong> As of community reports through late 2025, retromike.net BCH pool is the only confirmed NerdMiner-compatible BCH solo pool — and it has had sustained downtime periods. No stable, free, ESP32-compatible BCH solo pool is reliably operational 24/7 as of research date.
+    </div>
+    <div class="note">
+      <strong>DISPLAY DRIVER CONFLICT:</strong> CYD 2.8 boards exist in two variants (ILI9341, ST7789). Flashing wrong firmware produces garbled display but does not brick the device. Reflash with correct driver variant.
+    </div>
+    <div class="note">
+      <strong>POWER CYCLING:</strong> Community users reported mass power cycling across multiple ESP32 units after connecting to DigiByte pools. Cause was traced to pool protocol mismatches. Clean wipe + reflash resolved. If BCH pool causes instability, full flash erase recommended before switching.
+    </div>
+    <div class="note">
+      <strong>NMMiner LICENSING:</strong> NMMiner firmware is not fully open source. License cost is per-device. The GitHub repo (NMminer1024/NMMiner) contains source but the lotto/BCH features may require active license. Community questions about self-hosting go unanswered.
+    </div>
+    <div class="note">
+      <strong>SparkMiner BCH:</strong> Explicitly confirmed BTC-only in FAQ. "SparkMiner only supports Bitcoin (SHA-256d). Other coins use different algorithms." — this statement is technically inaccurate (BCH IS SHA-256d), but BCH support is not on the roadmap as of the research date. No GitHub issue or PR has successfully added BCH pool switching.
+    </div>
+  </section>
+
+  <!-- Sources -->
+  <div class="sources">
+    <h3>Research Sources</h3>
+    <ul class="source-list">
+      <li><a href="https://github.com/BitMaker-hub/NerdMiner_v2">github.com/BitMaker-hub/NerdMiner_v2</a> — Primary OSS firmware, CYD bin releases, BCH discussion #381</li>
+      <li><a href="https://github.com/BitzyLabs/sparkminer">github.com/BitzyLabs/sparkminer</a> (also SneezeGUI/SparkMiner) — Highest OSS hashrate, BTC-only confirmed FAQ</li>
+      <li><a href="https://github.com/NMminer1024/NMMiner">github.com/NMminer1024/NMMiner</a> — NMMiner source, supported pools list, BCH stratum endpoints</li>
+      <li><a href="https://www.nmminer.com/product/nmlotto/">nmminer.com/product/nmlotto</a> — NMMiner team BCH confirmation Q&amp;A (June 2025)</li>
+      <li><a href="https://www.nmminer.com/product/nm-cyd/">nmminer.com/product/nm-cyd</a> — CYD product page, SHA256d coin support, flash.nmminer.com instructions</li>
+      <li><a href="https://github.com/TheRetroMike/MiningNodes">github.com/TheRetroMike/MiningNodes</a> — BCH node + low-diff stratum Docker setup, retromike.net pool backend</li>
+      <li><a href="https://retromike.net/Guides/BitcoinCashNode">retromike.net/Guides/BitcoinCashNode</a> — BCH node guide with NerdMiner stratum port documentation</li>
+      <li><a href="https://github.com/matteocrippa/leafminer">github.com/matteocrippa/leafminer</a> — LeafMiner OSS, any-stratum SHA-256 support</li>
+      <li><a href="https://nerdminer.io/">nerdminer.io</a> — NerdMiner Pool (BTC-only, 0% fee, public-pool.io alternative)</li>
+      <li><a href="https://bch.solopool.org/">bch.solopool.org</a> — BCH solo pool (low-diff ESP32 compatibility unverified)</li>
+      <li><a href="https://d-central.tech/manuals/nerdminer-setup-guide/">d-central.tech — NerdMiner Setup Guide</a> — Hashrate context, BTC/ASIC comparison</li>
+      <li>Amazon product listings: Freenove CYD 2.8, Heltec NMMiner, NMMiner CYD — hardware specs</li>
+    </ul>
+  </div>
+
+</main>
+
+<footer>
+  ID34 Mining &amp; Engineering · SOETT™ Framework · Report compiled May 2026 · For internal technical reference
+</footer>
+
+</body>
+</html>
